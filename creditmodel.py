@@ -29,104 +29,80 @@ pd.set_option('display.max_rows',df.shape[0]+1)
 
 df
 
-pd.set_option('display.max_rows',10)
-
-df
-
-# voir les valeurs manquantes
+# Affichons les informations de base sur le dataset tels que les valeurs manquantes, les types de données ...
 df.info()
 
 df.isnull().sum().sort_values(ascending=False)
+
+# Remplir les valeurs manquantes
+df['Credit_History'].fillna(df['Credit_History'].mode()[0], inplace=True)
+df['Self_Employed'].fillna(df['Self_Employed'].mode()[0], inplace=True)
+df['LoanAmount'].fillna(df['LoanAmount'].median(), inplace=True)
+df['Dependents'].fillna(df['Dependents'].mode()[0], inplace=True)
+df['Loan_Amount_Term'].fillna(df['Loan_Amount_Term'].mode()[0], inplace=True)
+df['Gender'].fillna(df['Gender'].mode()[0], inplace=True)
+df['Married'].fillna(df['Married'].mode()[0], inplace=True)
+
+df.isnull().sum()
 
 df.describe()
 
 df.describe(include='O')
 
-# Renseigner les valeurs manquantes
-cat_data=[]
-num_data=[]
-for i,c in enumerate(df.dtypes):
-  if c==object:
-    cat_data.append(df.iloc[:,i])
-  else:
-    num_data.append(df.iloc[:,i])
-cat_data=pd.DataFrame(cat_data).transpose()
-num_data=pd.DataFrame(num_data).transpose()
+# Conversion des variables catégorielles en variables numériques
+df['Gender'] = df['Gender'].map({'Male': 1, 'Female': 0})
+df['Married'] = df['Married'].map({'Yes': 1, 'No': 0})
+df['Education'] = df['Education'].map({'Graduate': 1, 'Not Graduate': 0})
+df['Self_Employed'] = df['Self_Employed'].map({'Yes': 1, 'No': 0})
+df['Property_Area'] = df['Property_Area'].map({'Urban': 2, 'Semiurban': 1, 'Rural': 0})
+df['Loan_Status'] = df['Loan_Status'].map({'Y': 1, 'N': 0})
 
-cat_data
+# Pour la variable 'Dependents', nous pouvons gérer les valeurs comme suit :
+df['Dependents'] = df['Dependents'].replace('3+', 3).astype(int)
 
-num_data
+df.head()
 
 df.dtypes
 
-#Traitement Pour les variables catégoriques
-cat_data=cat_data.apply(lambda x:x.fillna(x.value_counts().index[0]))
-cat_data.isnull().sum().any()
-
-cat_data['Education'].value_counts()
-
-#Traitement pour les variables numériques
-num_data.fillna(method='bfill',inplace=True)
-num_data.isnull().sum().any()
-
-# Tranformer la colonne target
-target_value={'Y':1,'N':0}
-target=cat_data['Loan_Status']
-cat_data.drop('Loan_Status', axis=1, inplace=True)
-target=target.map(target_value)
-target
-
-from sklearn.preprocessing import LabelEncoder
-
-#Remplacer les valeurs catégorique par des valeurs numérique 0,1,2 ....
-le=LabelEncoder()
-for i in cat_data:
-  cat_data[i]=le.fit_transform(cat_data[i])
-cat_data
-
-#Supprimer loan_id
-cat_data.drop('Loan_ID',axis=1,inplace=True)
-
-#Concatener les variable categoriques  et les varibles numéroques
-X=pd.concat([cat_data,num_data],axis=1)
-y=target
-
-X
+df['Education'].value_counts()
 
 """#2- Analyse Exploratoire"""
 
 # Analyse de la varible target
-target.value_counts()
+df['Loan_Status'].value_counts()
 
-# la base de données utilisées pour l'analyse exploratoire
+import matplotlib.pyplot as plt
 
-df=pd.concat([cat_data,num_data,target],axis=1)
+# Répartition de la variable cible
+plt.figure(figsize=(8, 6))
+df['Loan_Status'].value_counts().plot(kind='bar', color=['green', 'red'])
+plt.xlabel('Loan Status')
+plt.ylabel('Count')
+plt.title('Répartition des statuts de prêt')
+plt.show()
 
-df
+import seaborn as sns
 
+# Relation entre le statut du prêt et l'historique de crédit
+plt.figure(figsize=(8, 6))
+sns.countplot(data=df, x='Credit_History', hue='Loan_Status')
+plt.xlabel('Credit History')
+plt.ylabel('Count')
+plt.title('Répartition des statuts de prêt selon l\'historique de crédit')
+plt.show()
 
-
-
-
-counts = [target.value_counts()[0], target.value_counts()[1]]
-yes = counts[0] / len(target)
-no = counts[1] / len(target)
+counts = [df['Loan_Status'].value_counts()[0], df['Loan_Status'].value_counts()[1]]
+yes = counts[0] / len(df['Loan_Status'])
+no = counts[1] / len(df['Loan_Status'])
 
 print(f'le pourcentage des credits accordés est : {yes:.2%}')
 print(f'le pourcentage des credits non accordés est : {no:.2%}')
 
 plt.figure(figsize=(8, 6))
-plt.bar(['Crédits accordés', 'Crédits non accordés'], counts, color=['blue', 'orange'])
+plt.bar(['Crédits accordés', 'Crédits non accordés'], counts, color=['orange', 'blue'])
 plt.xlabel('Catégorie')
 plt.ylabel('Nombre')
 plt.title('Répartition des crédits accordés et non accordés')
-plt.show()
-
-# Credit history
-
-grid = sns.FacetGrid(df, col='Loan_Status', height=3.2, aspect=1.6)
-grid.map(sns.countplot, 'Credit_History')
-
 plt.show()
 
 # Sexe
@@ -136,30 +112,29 @@ grid.map(sns.countplot, 'Gender')
 
 plt.show()
 
-# Revenu du demandeur
-plt.scatter(df['ApplicantIncome'],df['Loan_Status'])
+from sklearn.model_selection import train_test_split
 
-# Division de la base de données en une base de données test et d'entrainement
-from sklearn.model_selection import StratifiedShuffleSplit,train_test_split
+# Séparation des features et de la cible
+X = df.drop(columns=['Loan_ID', 'Loan_Status'])
+y = df['Loan_Status']
 
-sss=StratifiedShuffleSplit(n_splits=1,test_size=0.2,random_state=42)
-
-for train,test in sss.split(X,y):
-  X_train,X_test=X.iloc[train],X.iloc[test]
-  y_train,y_test=y.iloc[train],y.iloc[test]
+# Division des données
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42)
 
 print('X_train taille :', X_train.shape)
 print('X_test taille :', X_test.shape)
 print('y_train taille :', y_train.shape)
 print('y_test taille :', y_test.shape)
 
-# Je souhaite appliquer 3 modeles , evaluer et choisir le meilleur Logistic Regression,KNN,DecisionTree
+# Je souhaite appliquer 3 modeles , evaluer et choisir le meilleur RandomForestClassifier Logistic Regression,KNN,DecisionTree
+from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.tree import DecisionTreeClassifier
-from sklearn.metrics import accuracy_score
+from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
 
 models={
+    'RandomForestClassifier':RandomForestClassifier(random_state=42),
     'LogisticRegression':LogisticRegression(random_state=42),
     'KNeighborsClassifier':KNeighborsClassifier(),
     'DecisionTreeClassifier':DecisionTreeClassifier(max_depth=1,random_state=42)
@@ -168,11 +143,15 @@ models={
 #La fonction de la precision
 
 def accu(y_true,y_pred,retu=False):
-  acc=accuracy_score(y_true,y_pred)
+  acc=accuracy_score(y_true,y_pred),
+  Class=classification_report(y_test, y_pred),
+  Conf=confusion_matrix(y_test, y_pred)
   if retu:
-    return acc
+    return acc,Class,Conf
   else:
-    print(f'la precision du modele est  {acc}')
+    print(f'la precision du modele est  {acc}'),
+    print(f'Classification Report est  {Class}'),
+    print(f'Confusion Matrix  est {Conf}')
 
 
 #la fonction d'application des modeles
@@ -186,24 +165,52 @@ def train_test_eval(models,X_train,y_train,X_test,y_test):
 
 train_test_eval(models,X_train,y_train,X_test,y_test)
 
-X_2=X[['Credit_History','Married','CoapplicantIncome']]
+feature_selection=df[['Credit_History','Married','CoapplicantIncome']]
 
-sss=StratifiedShuffleSplit(n_splits=1,test_size=0.2,random_state=42)
+feature_selection.head()
 
-for train,test in sss.split(X_2,y):
-  X_train,X_test=X_2.iloc[train],X_2.iloc[test]
-  y_train,y_test=y.iloc[train],y.iloc[test]
+from sklearn.model_selection import train_test_split
+
+# Séparation des features et de la cible
+X = feature_selection
+y = df['Loan_Status']
+
+# Division des données
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42)
 
 print('X_train taille :', X_train.shape)
 print('X_test taille :', X_test.shape)
 print('y_train taille :', y_train.shape)
 print('y_test taille :', y_test.shape)
 
-train_test_eval(models,X_train,y_train,X_test,y_test)
-
 #Appliquer la regression logistique sur notre base de données
 Classifier=LogisticRegression()
-Classifier.fit(X_2,y)
+Classifier.fit(X_train, y_train)
+
+# Prédictions sur le test set
+y_pred = Classifier.predict(X_test)
+
+y_pred
+
+accuracy = Classifier.score(X_test, y_test)
+print(f"Accuracy du modele: {accuracy:.2f}")
+
+def predict_loan_status(credit_history, married, coapplicant_income):
+  input_data = pd.DataFrame({
+        'Credit_History': [credit_history],
+        'Married': [married],
+        'CoapplicantIncome': [coapplicant_income]
+    })
+  # Faire la prédiction
+  prediction = Classifier.predict(input_data)
+   # Convertir la prédiction en texte
+  if prediction[0] == 1:
+      return 'Accordé'
+  else:
+      return 'Non Accordé'
+
+result = predict_loan_status(0, 1, 5000)
+print(f"Le prêt est : {result}")
 
 #Enregistrer le modele
 pickle.dump(Classifier,open('model.pkl','wb'))
